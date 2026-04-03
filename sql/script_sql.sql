@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS public.dim_station
     altitude_m smallint,
     type_zone character varying(30) COLLATE pg_catalog."default" NOT NULL,
     timezone_name character varying(50) COLLATE pg_catalog."default" NOT NULL,
-    id_pays integer,
+    id_pays integer NOT NULL,
     CONSTRAINT dim_station_pkey PRIMARY KEY (id_station),
     CONSTRAINT dim_station_station_code_key UNIQUE (station_code)
 );
