@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+  <info>
+    <name>pl_api_who_raw</name>
+    <name_sync_with_filename>Y</name_sync_with_filename>
+    <description>WHO raw snapshot loader for Apache Hop.</description>
+    <extended_description>Calls the WHO GHO API and stores the raw JSON in public.stg_who_json_raw.</extended_description>
+    <pipeline_version/>
+    <pipeline_type>Normal</pipeline_type>
+    <parameters/>
+    <capture_transform_performance>N</capture_transform_performance>
+    <transform_performance_capturing_delay>1000</transform_performance_capturing_delay>
+    <transform_performance_capturing_size_limit>100</transform_performance_capturing_size_limit>
+    <created_user>-</created_user>
+    <created_date>2026/04/16 12:00:00.000</created_date>
+    <modified_user>-</modified_user>
+    <modified_date>2026/04/16 12:00:00.000</modified_date>
+  </info>
+  <notepads/>
+  <order>
+    <hop><from>Data grid</from><to>REST client</to><enabled>Y</enabled></hop>
+    <hop><from>REST client</from><to>Select values</to><enabled>Y</enabled></hop>
+    <hop><from>Select values</from><to>Table output</to><enabled>Y</enabled></hop>
+  </order>
+  <transform>
+    <name>Data grid</name><type>DataGrid</type><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning>
+    <data><line><item>https://ghoapi.azureedge.net/api/WHOSIS_000001</item></line></data>
+    <fields><field><name>who_url</name><type>String</type><length>-1</length><precision>-1</precision><currency/><set_empty_string>N</set_empty_string><format/><group/><decimal/></field></fields>
+    <attributes/><GUI><xloc>160</xloc><yloc>176</yloc></GUI>
+  </transform>
+  <transform>
+    <name>REST client</name><type>Rest</type><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning>
+    <applicationType>APPLICATION JSON</applicationType><bodyField/><connectionTimeout>15000</connectionTimeout><connection_name/><dynamicMethod>N</dynamicMethod>
+    <headers/><httpLogin/><httpPassword>Encrypted </httpPassword><ignoreSsl>N</ignoreSsl><matrixParameters/>
+    <method>GET</method><methodFieldName/><parameters/><preemptive>N</preemptive><proxyHost/><proxyPort/><readTimeout>15000</readTimeout>
+    <result><code/><name>api_result</name><response_header/><response_time/></result><trustStoreFile/><trustStorePassword>Encrypted </trustStorePassword>
+    <url/><urlField>who_url</urlField><urlInField>Y</urlInField><attributes/><GUI><xloc>352</xloc><yloc>176</yloc></GUI>
+  </transform>
+  <transform>
+    <name>Select values</name><type>SelectValues</type><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning>
+    <fields><field><length>-2</length><name>who_url</name><precision>-2</precision><rename>source_url</rename></field><field><length>-2</length><name>api_result</name><precision>-2</precision><rename>api_result</rename></field><select_unspecified>N</select_unspecified></fields>
+    <attributes/><GUI><xloc>536</xloc><yloc>176</yloc></GUI>
+  </transform>
+  <transform>
+    <name>Table output</name><type>TableOutput</type><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning>
+    <add_columns>N</add_columns><always_drop_and_recreate>N</always_drop_and_recreate><auto_update_table_structure>N</auto_update_table_structure><change_column_types>N</change_column_types>
+    <commit>100</commit><connection>projetbi</connection><drop_columns>N</drop_columns>
+    <fields><field><column_name>source_url</column_name><stream_name>source_url</stream_name></field><field><column_name>api_result</column_name><stream_name>api_result</stream_name></field></fields>
+    <ignore_errors>N</ignore_errors><only_when_have_rows>N</only_when_have_rows><partitioning_daily>N</partitioning_daily><partitioning_enabled>N</partitioning_enabled><partitioning_field/><partitioning_monthly>Y</partitioning_monthly>
+    <return_field/><return_keys>N</return_keys><schema>public</schema><specify_fields>Y</specify_fields><table>stg_who_json_raw</table><tablename_field/><tablename_in_field>N</tablename_in_field><tablename_in_table>Y</tablename_in_table><truncate>N</truncate><use_batch>Y</use_batch>
+    <attributes/><GUI><xloc>736</xloc><yloc>176</yloc></GUI>
+  </transform>
+  <transform_error_handling/><attributes/>
+</pipeline>

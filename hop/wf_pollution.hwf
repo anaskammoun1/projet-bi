@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workflow>
+  <name>wf_pollution</name>
+  <name_sync_with_filename>Y</name_sync_with_filename>
+  <description>OpenAQ orchestration for raw loads, dimensions and pollution fact refresh.</description>
+  <extended_description>Creates staging, loads raw locations and sensor measurements, flattens JSON, refreshes dim_station and dim_temps, then upserts fait_pollution_heure.</extended_description>
+  <workflow_version/>
+  <created_user>-</created_user>
+  <created_date>2026/04/16 20:45:00.000</created_date>
+  <modified_user>-</modified_user>
+  <modified_date>2026/04/16 20:45:00.000</modified_date>
+  <parameters/>
+  <actions>
+    <action><name>Start</name><description/><type>SPECIAL</type><attributes/><DayOfMonth>1</DayOfMonth><doNotWaitOnFirstExecution>N</doNotWaitOnFirstExecution><hour>12</hour><intervalMinutes>60</intervalMinutes><intervalSeconds>0</intervalSeconds><minutes>0</minutes><repeat>N</repeat><schedulerType>0</schedulerType><weekDay>1</weekDay><parallel>N</parallel><xloc>48</xloc><yloc>48</yloc><attributes_hac/></action>
+    <action><name>Create pollution location staging</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql>DROP TABLE IF EXISTS public.stg_pollution_json_raw;
+CREATE TABLE public.stg_pollution_json_raw (
+    pays_code character varying(3) NOT NULL,
+    pays_nom character varying(100) NOT NULL,
+    station_code character varying(50) NOT NULL,
+    city character varying(100),
+    openaq_location_id integer NOT NULL,
+    datetime_from character varying(10),
+    datetime_to character varying(10),
+    api_result text NOT NULL
+);</sql><sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>176</xloc><yloc>112</yloc><attributes_hac/></action>
+    <action><name>Clear pollution location staging</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql>TRUNCATE TABLE public.stg_pollution_json_raw;</sql><sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>384</xloc><yloc>112</yloc><attributes_hac/></action>
+    <action><name>Create sensor staging</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql>DROP TABLE IF EXISTS public.stg_sensor_measurements_raw;
+CREATE TABLE public.stg_sensor_measurements_raw (
+    station_code character varying(50) NOT NULL,
+    openaq_location_id integer NOT NULL,
+    sensor_id integer NOT NULL,
+    parameter_code character varying(50) NOT NULL,
+    api_result text NOT NULL
+);</sql><sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>592</xloc><yloc>112</yloc><attributes_hac/></action>
+    <action><name>Clear sensor staging</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql>TRUNCATE TABLE public.stg_sensor_measurements_raw;</sql><sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>800</xloc><yloc>112</yloc><attributes_hac/></action>
+    <action><name>Run API pollution raw</name><description/><type>PIPELINE</type><attributes/><add_date>N</add_date><add_time>N</add_time><clear_files>N</clear_files><clear_rows>N</clear_rows><create_parent_folder>N</create_parent_folder><exec_per_row>N</exec_per_row><filename>C:\Users\Omar Safi\Desktop\ProjetPowerBI\projet-bi\hop\pl_api_pollution_raw.hpl</filename><logext/><logfile/><loglevel>Basic</loglevel><parameters><pass_all_parameters>Y</pass_all_parameters></parameters><params_from_previous>N</params_from_previous><run_configuration>local</run_configuration><set_append_logfile>N</set_append_logfile><set_logfile>N</set_logfile><wait_until_finished>Y</wait_until_finished><parallel>N</parallel><xloc>240</xloc><yloc>288</yloc><attributes_hac/></action>
+    <action><name>Load dim_station</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql/><sqlfilename>C:\Users\Omar Safi\Desktop\ProjetPowerBI\projet-bi\sql\sql_insert_dim_station_from_pollution.sql</sqlfilename><sqlfromfile>Y</sqlfromfile><useVariableSubstitution>Y</useVariableSubstitution><parallel>N</parallel><xloc>512</xloc><yloc>288</yloc><attributes_hac/></action>
+    <action><name>Run API sensor measurements raw</name><description/><type>PIPELINE</type><attributes/><add_date>N</add_date><add_time>N</add_time><clear_files>N</clear_files><clear_rows>N</clear_rows><create_parent_folder>N</create_parent_folder><exec_per_row>N</exec_per_row><filename>C:\Users\Omar Safi\Desktop\ProjetPowerBI\projet-bi\hop\pl_api_sensor_measurements_raw.hpl</filename><logext/><logfile/><loglevel>Basic</loglevel><parameters><pass_all_parameters>Y</pass_all_parameters></parameters><params_from_previous>N</params_from_previous><run_configuration>local</run_configuration><set_append_logfile>N</set_append_logfile><set_logfile>N</set_logfile><wait_until_finished>Y</wait_until_finished><parallel>N</parallel><xloc>816</xloc><yloc>288</yloc><attributes_hac/></action>
+    <action><name>Flatten sensor measurements</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql/><sqlfilename>C:\Users\Omar Safi\Desktop\ProjetPowerBI\projet-bi\sql\sql_flatten_stg_sensor_measurements.sql</sqlfilename><sqlfromfile>Y</sqlfromfile><useVariableSubstitution>Y</useVariableSubstitution><parallel>N</parallel><xloc>1088</xloc><yloc>288</yloc><attributes_hac/></action>
+    <action><name>Fill dim_temps from pollution</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql/><sqlfilename>C:\Users\Omar Safi\Desktop\ProjetPowerBI\projet-bi\sql\sql_insert_dim_temps_from_pollution.sql</sqlfilename><sqlfromfile>Y</sqlfromfile><useVariableSubstitution>Y</useVariableSubstitution><parallel>N</parallel><xloc>1376</xloc><yloc>288</yloc><attributes_hac/></action>
+    <action><name>Load fait_pollution_heure</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql/><sqlfilename>C:\Users\Omar Safi\Desktop\ProjetPowerBI\projet-bi\sql\sql_insert_fait_pollution_heure.sql</sqlfilename><sqlfromfile>Y</sqlfromfile><useVariableSubstitution>Y</useVariableSubstitution><parallel>N</parallel><xloc>1664</xloc><yloc>288</yloc><attributes_hac/></action>
+    <action><name>Success</name><description/><type>SUCCESS</type><attributes/><parallel>N</parallel><xloc>1888</xloc><yloc>288</yloc><attributes_hac/></action>
+  </actions>
+  <hops>
+    <hop><from>Start</from><to>Create pollution location staging</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>Y</unconditional></hop>
+    <hop><from>Create pollution location staging</from><to>Clear pollution location staging</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Clear pollution location staging</from><to>Create sensor staging</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Create sensor staging</from><to>Clear sensor staging</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Clear sensor staging</from><to>Run API pollution raw</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Run API pollution raw</from><to>Load dim_station</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Load dim_station</from><to>Run API sensor measurements raw</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Run API sensor measurements raw</from><to>Flatten sensor measurements</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Flatten sensor measurements</from><to>Fill dim_temps from pollution</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Fill dim_temps from pollution</from><to>Load fait_pollution_heure</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Load fait_pollution_heure</from><to>Success</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+  </hops>
+  <notepads/>
+  <attributes/>
+</workflow>

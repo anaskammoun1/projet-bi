@@ -21,7 +21,7 @@ COMMENT ON TABLE public.dim_meteo_classe
 CREATE TABLE IF NOT EXISTS public.dim_pays
 (
     id_pays serial NOT NULL,
-    pays_code character(2) COLLATE pg_catalog."default" NOT NULL,
+    pays_code character(3) COLLATE pg_catalog."default" NOT NULL,
     pays_nom character varying(100) COLLATE pg_catalog."default" NOT NULL,
     continent character varying(50) COLLATE pg_catalog."default",
     CONSTRAINT dim_pays_pkey PRIMARY KEY (id_pays),

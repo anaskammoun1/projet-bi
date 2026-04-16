@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+  <info>
+    <name>t01_who_dim_pays</name>
+    <name_sync_with_filename>Y</name_sync_with_filename>
+    <description>Load public.dim_pays from WHO CSV staging using ISO3 country codes.</description>
+    <extended_description/>
+    <pipeline_version/>
+    <pipeline_type>Normal</pipeline_type>
+    <parameters/>
+    <capture_transform_performance>N</capture_transform_performance>
+    <transform_performance_capturing_delay>1000</transform_performance_capturing_delay>
+    <transform_performance_capturing_size_limit>100</transform_performance_capturing_size_limit>
+    <created_user>-</created_user>
+    <created_date>2026/04/16 12:00:00.000</created_date>
+    <modified_user>-</modified_user>
+    <modified_date>2026/04/16 12:00:00.000</modified_date>
+  </info>
+  <notepads/>
+  <order>
+    <hop><from>Table input</from><to>Modified JavaScript value</to><enabled>Y</enabled></hop>
+    <hop><from>Modified JavaScript value</from><to>Filter rows</to><enabled>Y</enabled></hop>
+    <hop><from>Filter rows</from><to>Insert / update</to><enabled>Y</enabled></hop>
+  </order>
+  <transform>
+    <name>Table input</name><type>TableInput</type><description>Read WHO country metadata from CSV staging.</description><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning>
+    <connection>projetbi</connection>
+    <sql>SELECT DISTINCT
+    "Location type" AS SpatialDimType,
+    SpatialDimValueCode AS SpatialDim,
+    ParentLocationCode,
+    ParentLocation
+FROM public.stg_who_csv_raw
+WHERE SpatialDimValueCode IS NOT NULL;</sql>
+    <limit>0</limit><attributes/><GUI><xloc>160</xloc><yloc>176</yloc></GUI>
+  </transform>
+  <transform>
+    <name>Modified JavaScript value</name><type>ScriptValueMod</type><description/><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning><compatible>N</compatible><optimizationLevel>9</optimizationLevel>
+    <jsScripts><jsScript><jsScript_type>0</jsScript_type><jsScript_name>Script 1</jsScript_name><jsScript_script>var isoMap = {
+  'AFG': ['AF', 'Afghanistan'],
+  'AGO': ['AO', 'Angola'],
+  'ALB': ['AL', 'Albania'],
+  'ARE': ['AE', 'United Arab Emirates'],
+  'ARG': ['AR', 'Argentina'],
+  'ARM': ['AM', 'Armenia'],
+  'ATG': ['AG', 'Antigua &amp; Barbuda'],
+  'AUS': ['AU', 'Australia'],
+  'AUT': ['AT', 'Austria'],
+  'AZE': ['AZ', 'Azerbaijan'],
+  'BDI': ['BI', 'Burundi'],
+  'BEL': ['BE', 'Belgium'],
+  'BEN': ['BJ', 'Benin'],
+  'BFA': ['BF', 'Burkina Faso'],
+  'BGD': ['BD', 'Bangladesh'],
+  'BGR': ['BG', 'Bulgaria'],
+  'BHR': ['BH', 'Bahrain'],
+  'BHS': ['BS', 'Bahamas'],
+  'BIH': ['BA', 'Bosnia and Herzegovina'],
+  'BLR': ['BY', 'Belarus'],
+  'BLZ': ['BZ', 'Belize'],
+  'BOL': ['BO', 'Bolivia'],
+  'BRA': ['BR', 'Brazil'],
+  'BRB': ['BB', 'Barbados'],
+  'BRN': ['BN', 'Brunei'],
+  'BTN': ['BT', 'Bhutan'],
+  'BWA': ['BW', 'Botswana'],
+  'CAF': ['CF', 'Central African Republic'],
+  'CAN': ['CA', 'Canada'],
+  'CHE': ['CH', 'Switzerland'],
+  'CHL': ['CL', 'Chile'],
+  'CHN': ['CN', 'China'],
+  'CIV': ['CI', 'Cote d\'Ivoire'],
+  'CMR': ['CM', 'Cameroon'],
+  'COD': ['CD', 'Congo (DRC)'],
+  'COG': ['CG', 'Congo'],
+  'COL': ['CO', 'Colombia'],
+  'COM': ['KM', 'Comoros'],
+  'CPV': ['CV', 'Cabo Verde'],
+  'CRI': ['CR', 'Costa Rica'],
+  'CUB': ['CU', 'Cuba'],
+  'CYP': ['CY', 'Cyprus'],
+  'CZE': ['CZ', 'Czechia'],
+  'DEU': ['DE', 'Germany'],
+  'DJI': ['DJ', 'Djibouti'],
+  'DNK': ['DK', 'Denmark'],
+  'DOM': ['DO', 'Dominican Republic'],
+  'DZA': ['DZ', 'Algeria'],
+  'ECU': ['EC', 'Ecuador'],
+  'EGY': ['EG', 'Egypt'],
+  'ERI': ['ER', 'Eritrea'],
+  'ESP': ['ES', 'Spain'],
+  'EST': ['EE', 'Estonia'],
+  'ETH': ['ET', 'Ethiopia'],
+  'FIN': ['FI', 'Finland'],
+  'FJI': ['FJ', 'Fiji'],
+  'FRA': ['FR', 'France'],
+  'FSM': ['FM', 'Micronesia'],
+  'GAB': ['GA', 'Gabon'],
+  'GBR': ['GB', 'United Kingdom'],
+  'GEO': ['GE', 'Georgia'],
+  'GHA': ['GH', 'Ghana'],
+  'GIN': ['GN', 'Guinea'],
+  'GMB': ['GM', 'Gambia'],
+  'GNB': ['GW', 'Guinea-Bissau'],
+  'GNQ': ['GQ', 'Equatorial Guinea'],
+  'GRC': ['GR', 'Greece'],
+  'GRD': ['GD', 'Grenada'],
+  'GTM': ['GT', 'Guatemala'],
+  'GUY': ['GY', 'Guyana'],
+  'HND': ['HN', 'Honduras'],
+  'HRV': ['HR', 'Croatia'],
+  'HTI': ['HT', 'Haiti'],
+  'HUN': ['HU', 'Hungary'],
+  'IDN': ['ID', 'Indonesia'],
+  'IND': ['IN', 'India'],
+  'IRL': ['IE', 'Ireland'],
+  'IRN': ['IR', 'Iran'],
+  'IRQ': ['IQ', 'Iraq'],
+  'ISL': ['IS', 'Iceland'],
+  'ISR': ['IL', 'Israel'],
+  'ITA': ['IT', 'Italy'],
+  'JAM': ['JM', 'Jamaica'],
+  'JOR': ['JO', 'Jordan'],
+  'JPN': ['JP', 'Japan'],
+  'KAZ': ['KZ', 'Kazakhstan'],
+  'KEN': ['KE', 'Kenya'],
+  'KGZ': ['KG', 'Kyrgyzstan'],
+  'KHM': ['KH', 'Cambodia'],
+  'KIR': ['KI', 'Kiribati'],
+  'KOR': ['KR', 'South Korea'],
+  'KWT': ['KW', 'Kuwait'],
+  'LAO': ['LA', 'Laos'],
+  'LBN': ['LB', 'Lebanon'],
+  'LBR': ['LR', 'Liberia'],
+  'LBY': ['LY', 'Libya'],
+  'LCA': ['LC', 'St. Lucia'],
+  'LKA': ['LK', 'Sri Lanka'],
+  'LSO': ['LS', 'Lesotho'],
+  'LTU': ['LT', 'Lithuania'],
+  'LUX': ['LU', 'Luxembourg'],
+  'LVA': ['LV', 'Latvia'],
+  'MAR': ['MA', 'Morocco'],
+  'MDA': ['MD', 'Moldova'],
+  'MDG': ['MG', 'Madagascar'],
+  'MDV': ['MV', 'Maldives'],
+  'MEX': ['MX', 'Mexico'],
+  'MKD': ['MK', 'North Macedonia'],
+  'MLI': ['ML', 'Mali'],
+  'MLT': ['MT', 'Malta'],
+  'MMR': ['MM', 'Myanmar'],
+  'MNE': ['ME', 'Montenegro'],
+  'MNG': ['MN', 'Mongolia'],
+  'MOZ': ['MZ', 'Mozambique'],
+  'MRT': ['MR', 'Mauritania'],
+  'MUS': ['MU', 'Mauritius'],
+  'MWI': ['MW', 'Malawi'],
+  'MYS': ['MY', 'Malaysia'],
+  'NAM': ['NA', 'Namibia'],
+  'NER': ['NE', 'Niger'],
+  'NGA': ['NG', 'Nigeria'],
+  'NIC': ['NI', 'Nicaragua'],
+  'NLD': ['NL', 'Netherlands'],
+  'NOR': ['NO', 'Norway'],
+  'NPL': ['NP', 'Nepal'],
+  'NZL': ['NZ', 'New Zealand'],
+  'OMN': ['OM', 'Oman'],
+  'PAK': ['PK', 'Pakistan'],
+  'PAN': ['PA', 'Panama'],
+  'PER': ['PE', 'Peru'],
+  'PHL': ['PH', 'Philippines'],
+  'PNG': ['PG', 'Papua New Guinea'],
+  'POL': ['PL', 'Poland'],
+  'PRI': ['PR', 'Puerto Rico'],
+  'PRK': ['KP', 'North Korea'],
+  'PRT': ['PT', 'Portugal'],
+  'PRY': ['PY', 'Paraguay'],
+  'PSE': ['PS', 'Palestinian Authority'],
+  'QAT': ['QA', 'Qatar'],
+  'ROU': ['RO', 'Romania'],
+  'RUS': ['RU', 'Russia'],
+  'RWA': ['RW', 'Rwanda'],
+  'SAU': ['SA', 'Saudi Arabia'],
+  'SDN': ['SD', 'Sudan'],
+  'SEN': ['SN', 'Senegal'],
+  'SGP': ['SG', 'Singapore'],
+  'SLB': ['SB', 'Solomon Islands'],
+  'SLE': ['SL', 'Sierra Leone'],
+  'SLV': ['SV', 'El Salvador'],
+  'SOM': ['SO', 'Somalia'],
+  'SRB': ['RS', 'Serbia'],
+  'SSD': ['SS', 'South Sudan'],
+  'STP': ['ST', 'Sao Tome &amp; Principe'],
+  'SUR': ['SR', 'Suriname'],
+  'SVK': ['SK', 'Slovakia'],
+  'SVN': ['SI', 'Slovenia'],
+  'SWE': ['SE', 'Sweden'],
+  'SWZ': ['SZ', 'Eswatini'],
+  'SYC': ['SC', 'Seychelles'],
+  'SYR': ['SY', 'Syria'],
+  'TCD': ['TD', 'Chad'],
+  'TGO': ['TG', 'Togo'],
+  'THA': ['TH', 'Thailand'],
+  'TJK': ['TJ', 'Tajikistan'],
+  'TKM': ['TM', 'Turkmenistan'],
+  'TLS': ['TL', 'Timor-Leste'],
+  'TON': ['TO', 'Tonga'],
+  'TTO': ['TT', 'Trinidad &amp; Tobago'],
+  'TUN': ['TN', 'Tunisia'],
+  'TUR': ['TR', 'Turkiye'],
+  'TZA': ['TZ', 'Tanzania'],
+  'UGA': ['UG', 'Uganda'],
+  'UKR': ['UA', 'Ukraine'],
+  'URY': ['UY', 'Uruguay'],
+  'USA': ['US', 'United States'],
+  'UZB': ['UZ', 'Uzbekistan'],
+  'VCT': ['VC', 'St. Vincent &amp; Grenadines'],
+  'VEN': ['VE', 'Venezuela'],
+  'VNM': ['VN', 'Vietnam'],
+  'VUT': ['VU', 'Vanuatu'],
+  'WSM': ['WS', 'Samoa'],
+  'YEM': ['YE', 'Yemen'],
+  'ZAF': ['ZA', 'South Africa'],
+  'ZMB': ['ZM', 'Zambia'],
+  'ZWE': ['ZW', 'Zimbabwe']
+};
+
+var mapEntry = null;
+var pays_code = null;
+var pays_nom = null;
+var continent = null;
+var valid_country = false;
+var continentMap = { 'AFR': 'Africa', 'AMR': 'Americas', 'EUR': 'Europe', 'EMR': 'Asia', 'SEAR': 'Asia', 'WPR': 'Oceania' };
+
+if (SpatialDimType != null &amp;&amp; SpatialDimType == 'COUNTRY' &amp;&amp; SpatialDim != null) {
+  mapEntry = isoMap[SpatialDim];
+}
+
+if (mapEntry != null) {
+  pays_code = SpatialDim;
+  pays_nom = mapEntry[1];
+  continent = continentMap[ParentLocationCode];
+  valid_country = true;
+}</jsScript_script></jsScript></jsScripts>
+    <fields>
+      <field><name>pays_code</name><rename>pays_code</rename><type>String</type><length>-1</length><precision>-1</precision><replace>N</replace></field>
+      <field><name>pays_nom</name><rename>pays_nom</rename><type>String</type><length>-1</length><precision>-1</precision><replace>N</replace></field>
+      <field><name>continent</name><rename>continent</rename><type>String</type><length>-1</length><precision>-1</precision><replace>N</replace></field>
+      <field><name>valid_country</name><rename>valid_country</rename><type>String</type><length>-1</length><precision>-1</precision><replace>N</replace></field>
+    </fields>
+    <attributes/><GUI><xloc>416</xloc><yloc>176</yloc></GUI>
+  </transform>
+  <transform>
+    <name>Filter rows</name><type>FilterRows</type><description/><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning>
+    <send_true_to/><send_false_to/>
+    <compare><condition><negated>N</negated><leftvalue>valid_country</leftvalue><function>=</function><rightvalue/><value><name>constant</name><type>String</type><text>true</text><length>-1</length><precision>-1</precision><isnull>N</isnull><mask/></value></condition></compare>
+    <attributes/><GUI><xloc>656</xloc><yloc>176</yloc></GUI>
+  </transform>
+  <transform>
+    <name>Insert / update</name><type>InsertUpdate</type><description/><distribute>Y</distribute><custom_distribution/><copies>1</copies>
+    <partitioning><method>none</method><schema_name/></partitioning>
+    <connection>projetbi</connection><commit>100</commit><update_bypassed>N</update_bypassed>
+    <lookup><schema>public</schema><table>dim_pays</table><key><name>pays_code</name><field>pays_code</field><condition>=</condition><name2/></key>
+      <value><name>pays_code</name><rename>pays_code</rename><update>Y</update></value>
+      <value><name>pays_nom</name><rename>pays_nom</rename><update>Y</update></value>
+      <value><name>continent</name><rename>continent</rename><update>Y</update></value>
+    </lookup>
+    <attributes/><GUI><xloc>896</xloc><yloc>176</yloc></GUI>
+  </transform>
+</pipeline>

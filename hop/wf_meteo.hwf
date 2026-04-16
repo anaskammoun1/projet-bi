@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workflow>
+  <name>wf_meteo</name>
+  <name_sync_with_filename>Y</name_sync_with_filename>
+  <description>Open-Meteo orchestration for raw load and dimension refresh.</description>
+  <extended_description>Runs the raw weather pipeline then refreshes dim_temps and dim_meteo_classe.</extended_description>
+  <workflow_version/>
+  <created_user>-</created_user>
+  <created_date>2026/04/16 12:00:00.000</created_date>
+  <modified_user>-</modified_user>
+  <modified_date>2026/04/16 12:00:00.000</modified_date>
+  <parameters/>
+  <actions>
+    <action>
+      <name>Start</name><description/><type>SPECIAL</type><attributes/>
+      <DayOfMonth>1</DayOfMonth><doNotWaitOnFirstExecution>N</doNotWaitOnFirstExecution><hour>12</hour>
+      <intervalMinutes>60</intervalMinutes><intervalSeconds>0</intervalSeconds><minutes>0</minutes><repeat>N</repeat>
+      <schedulerType>0</schedulerType><weekDay>1</weekDay><parallel>N</parallel><xloc>50</xloc><yloc>50</yloc><attributes_hac/>
+    </action>
+    <action>
+      <name>Create meteo staging</name><description/><type>SQL</type><attributes/>
+      <connection>projetbi</connection><sendOneStatement>N</sendOneStatement>
+      <sql>DROP TABLE IF EXISTS public.stg_meteo_json_raw;
+CREATE TABLE public.stg_meteo_json_raw (
+    station_code character varying(50) NOT NULL,
+    latitude numeric(9,6) NOT NULL,
+    longitude numeric(9,6) NOT NULL,
+    start_date character varying(10) NOT NULL,
+    end_date character varying(10) NOT NULL,
+    api_result text NOT NULL
+);</sql>
+      <sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>144</xloc><yloc>144</yloc><attributes_hac/>
+    </action>
+    <action>
+      <name>Clear meteo staging</name><description/><type>SQL</type><attributes/>
+      <connection>projetbi</connection><sendOneStatement>N</sendOneStatement>
+      <sql>TRUNCATE TABLE public.stg_meteo_json_raw;</sql>
+      <sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>288</xloc><yloc>144</yloc><attributes_hac/>
+    </action>
+    <action>
+      <name>Run API Meteo Raw</name><description/><type>PIPELINE</type><attributes/>
+      <add_date>N</add_date><add_time>N</add_time><clear_files>N</clear_files><clear_rows>N</clear_rows>
+      <create_parent_folder>N</create_parent_folder><exec_per_row>N</exec_per_row>
+      <filename>C:\Users\Omar Safi\Desktop\ProjetPowerBI\projet-bi\hop\pl_api_meteo_raw.hpl</filename>
+      <logext/><logfile/><loglevel>Basic</loglevel>
+      <parameters><pass_all_parameters>Y</pass_all_parameters></parameters><params_from_previous>N</params_from_previous>
+      <run_configuration>local</run_configuration><set_append_logfile>N</set_append_logfile><set_logfile>N</set_logfile>
+      <wait_until_finished>Y</wait_until_finished><parallel>N</parallel><xloc>160</xloc><yloc>272</yloc><attributes_hac/>
+    </action>
+    <action>
+      <name>Fill dim_temps</name><description/><type>SQL</type><attributes/>
+      <connection>projetbi</connection><sendOneStatement>N</sendOneStatement>
+      <sql>INSERT INTO public.dim_temps (date_heure_utc,date_locale,annee,trimestre,mois,semaine,jour,heure,jour_semaine,is_weekend,saison)
+SELECT DISTINCT
+    ts AS date_heure_utc,
+    ts::date AS date_locale,
+    EXTRACT(YEAR FROM ts)::smallint AS annee,
+    EXTRACT(QUARTER FROM ts)::smallint AS trimestre,
+    EXTRACT(MONTH FROM ts)::smallint AS mois,
+    EXTRACT(WEEK FROM ts)::smallint AS semaine,
+    EXTRACT(DAY FROM ts)::smallint AS jour,
+    EXTRACT(HOUR FROM ts)::smallint AS heure,
+    TRIM(TO_CHAR(ts, 'Day'))::varchar(10) AS jour_semaine,
+    CASE WHEN EXTRACT(ISODOW FROM ts) IN (6,7) THEN true ELSE false END AS is_weekend,
+    CASE WHEN EXTRACT(MONTH FROM ts) IN (12,1,2) THEN 'Hiver' WHEN EXTRACT(MONTH FROM ts) IN (3,4,5) THEN 'Printemps' WHEN EXTRACT(MONTH FROM ts) IN (6,7,8) THEN 'Ete' ELSE 'Automne' END AS saison
+FROM (
+    SELECT (json_array_elements_text((api_result::json -&gt; 'hourly' -&gt; 'time')))::timestamp AS ts
+    FROM public.stg_meteo_json_raw
+) x
+ON CONFLICT (date_heure_utc) DO NOTHING;</sql>
+      <sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>496</xloc><yloc>352</yloc><attributes_hac/>
+    </action>
+    <action>
+      <name>Fill dim_meteo_classe</name><description/><type>SQL</type><attributes/>
+      <connection>projetbi</connection><sendOneStatement>N</sendOneStatement>
+      <sql>INSERT INTO public.dim_meteo_classe (temp_bande,humidite_bande,vent_bande,pluie_classe,source_classe)
+SELECT DISTINCT
+    CASE WHEN temperature_c &lt; 0 THEN 'tr_s froid' WHEN temperature_c &lt; 10 THEN 'froid' WHEN temperature_c &lt; 20 THEN 'modere' ELSE 'chaud' END,
+    CASE WHEN humidite &lt; 40 THEN 'sec' WHEN humidite &lt;= 70 THEN 'normal' ELSE 'humide' END,
+    CASE WHEN vent &lt; 10 THEN 'calme' WHEN vent &lt;= 30 THEN 'modere' ELSE 'fort' END,
+    CASE WHEN pluie = 0 THEN 'aucune' WHEN pluie &lt; 2 THEN 'legere' WHEN pluie &lt; 10 THEN 'moderee' ELSE 'forte' END,
+    'Open-Meteo'
+FROM (
+    SELECT
+        temp.value::numeric AS temperature_c,
+        hum.value::numeric AS humidite,
+        wind.value::numeric AS vent,
+        prec.value::numeric AS pluie
+    FROM public.stg_meteo_json_raw r,
+    LATERAL json_array_elements_text((r.api_result::json -&gt; 'hourly' -&gt; 'temperature_2m')) WITH ORDINALITY AS temp(value, ord)
+    JOIN LATERAL json_array_elements_text((r.api_result::json -&gt; 'hourly' -&gt; 'relative_humidity_2m')) WITH ORDINALITY AS hum(value, ord2) ON ord = ord2
+    JOIN LATERAL json_array_elements_text((r.api_result::json -&gt; 'hourly' -&gt; 'wind_speed_10m')) WITH ORDINALITY AS wind(value, ord3) ON ord = ord3
+    JOIN LATERAL json_array_elements_text((r.api_result::json -&gt; 'hourly' -&gt; 'precipitation')) WITH ORDINALITY AS prec(value, ord4) ON ord = ord4
+) m
+ON CONFLICT DO NOTHING;</sql>
+      <sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>656</xloc><yloc>368</yloc><attributes_hac/>
+    </action>
+    <action>
+      <name>Success</name><description/><type>SUCCESS</type><attributes/><parallel>N</parallel><xloc>864</xloc><yloc>368</yloc><attributes_hac/>
+    </action>
+  </actions>
+  <hops>
+    <hop><from>Start</from><to>Create meteo staging</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>Y</unconditional></hop>
+    <hop><from>Create meteo staging</from><to>Clear meteo staging</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Clear meteo staging</from><to>Run API Meteo Raw</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Run API Meteo Raw</from><to>Fill dim_temps</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Fill dim_temps</from><to>Fill dim_meteo_classe</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Fill dim_meteo_classe</from><to>Success</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+  </hops>
+  <notepads/>
+  <attributes/>
+</workflow>
