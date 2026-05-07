@@ -1,52 +1,54 @@
--- Insert pollution facts at hourly grain and enrich them with hourly weather.
--- Source tables:
---   - public.stg_pollution_mesure
---   - public.stg_meteo_json_raw
--- Dimension joins:
---   - public.dim_station via station_code
---   - public.dim_temps via hourly timestamp bucket
---   - public.dim_meteo_classe via derived weather classes
-
-WITH normalized AS (
+WITH pollutant_catalog AS (
+    SELECT * FROM (VALUES
+        ('co',   'Carbon monoxide',       'mg/m3'),
+        ('no',   'Nitric oxide',          'ug/m3'),
+        ('no2',  'Nitrogen dioxide',      'ug/m3'),
+        ('nox',  'Nitrogen oxides',       'ppb'),
+        ('o3',   'Ozone',                 'ug/m3'),
+        ('pm10', 'Particulate matter 10', 'ug/m3'),
+        ('pm25', 'Particulate matter 2.5','ug/m3'),
+        ('so2',  'Sulfur dioxide',        'ug/m3')
+    ) AS v(parameter_code, parameter_nom, unite_standard)
+),
+upsert_polluant AS (
+    INSERT INTO public.dim_polluant (parameter_code, parameter_nom, unite_standard)
+    SELECT parameter_code, parameter_nom, unite_standard
+    FROM pollutant_catalog
+    ON CONFLICT (parameter_code) DO UPDATE
+    SET parameter_nom = EXCLUDED.parameter_nom,
+        unite_standard = EXCLUDED.unite_standard
+    RETURNING id_polluant, parameter_code
+),
+normalized AS (
     SELECT
         pm.station_code,
-        pm.date_heure_utc,
+        date_trunc('hour', pm.date_heure_utc) AS bucket_utc,
         LOWER(pm.parameter_code) AS parameter_code,
-        pm.valeur,
-        pm.unite,
+        AVG(
+            CASE
+                WHEN LOWER(pm.parameter_code) = 'co'
+                 AND (
+                     LOWER(pm.unite) LIKE 'ug/m3%'
+                     OR LOWER(pm.unite) LIKE 'ug m-3%'
+                     OR LOWER(pm.unite) LIKE CHR(181) || 'g/m3%'
+                     OR LOWER(pm.unite) LIKE CHR(181) || 'g m-3%'
+                 )
+                    THEN pm.valeur / 1000.0
+                ELSE pm.valeur
+            END
+        )::numeric(12,4) AS valeur,
         CASE
-            WHEN LOWER(pm.parameter_code) = 'co'
-             AND (
-                 LOWER(COALESCE(pm.unite, '')) LIKE 'ug/m3%'
-                 OR LOWER(COALESCE(pm.unite, '')) LIKE 'ug m-3%'
-                 OR LOWER(COALESCE(pm.unite, '')) LIKE CHR(181) || 'g/m3%'
-                 OR LOWER(COALESCE(pm.unite, '')) LIKE CHR(181) || 'g m-3%'
-             )
-                THEN pm.valeur / 1000.0
-            ELSE pm.valeur
-        END AS normalized_value
+            WHEN LOWER(pm.parameter_code) = 'co' THEN 'mg/m3'
+            WHEN LOWER(pm.parameter_code) = 'nox' THEN 'ppb'
+            ELSE 'ug/m3'
+        END AS unite
     FROM public.stg_pollution_mesure pm
-    WHERE pm.date_heure_utc IS NOT NULL
-),
-hourly_pivot AS (
-    SELECT
-        n.station_code,
-        date_trunc('hour', n.date_heure_utc) AS bucket_utc,
-        AVG(n.normalized_value) FILTER (WHERE n.parameter_code = 'co') AS co_mg_m3,
-        AVG(n.normalized_value) FILTER (WHERE n.parameter_code = 'no2') AS no2_ug_m3,
-        AVG(n.normalized_value) FILTER (WHERE n.parameter_code = 'pm25') AS pm25_ug_m3,
-        AVG(n.normalized_value) FILTER (WHERE n.parameter_code = 'pm10') AS pm10_ug_m3,
-        AVG(n.normalized_value) FILTER (WHERE n.parameter_code = 'o3') AS o3_ug_m3,
-        AVG(n.normalized_value) FILTER (WHERE n.parameter_code = 'benzene') AS benzene_ug_m3,
-        AVG(n.normalized_value) FILTER (WHERE n.parameter_code = 'nox') AS nox_ppb
-    FROM normalized n
+    WHERE pm.valeur IS NOT NULL
+      AND pm.parameter_code IN ('co', 'no', 'no2', 'nox', 'o3', 'pm10', 'pm25', 'so2')
     GROUP BY
-        n.station_code,
-        date_trunc('hour', n.date_heure_utc)
-    HAVING
-        COUNT(*) FILTER (
-            WHERE n.parameter_code IN ('co', 'no2', 'pm25', 'pm10', 'o3', 'benzene', 'nox')
-        ) > 0
+        pm.station_code,
+        date_trunc('hour', pm.date_heure_utc),
+        LOWER(pm.parameter_code)
 ),
 weather_hourly AS (
     SELECT
@@ -69,49 +71,91 @@ weather_hourly AS (
 ),
 weather_classified AS (
     SELECT
-        w.station_code,
-        w.bucket_utc,
-        w.temperature_c,
-        w.humidite_relative_pct,
-        ROUND(w.wind_speed_10m_kmh / 3.6, 2) AS vitesse_vent_10m_ms,
-        COALESCE(w.precipitation_mm, 0)::numeric(6,2) AS precipitation_mm,
-        (COALESCE(w.precipitation_mm, 0) > 0) AS rain_flag,
+        station_code,
+        bucket_utc,
+        temperature_c,
+        humidite_relative_pct,
+        ROUND(wind_speed_10m_kmh / 3.6, 2)::numeric(6,2) AS vitesse_vent_10m_ms,
+        COALESCE(precipitation_mm, 0)::numeric(6,2) AS precipitation_mm,
+        (COALESCE(precipitation_mm, 0) > 0) AS rain_flag,
         CASE
-            WHEN w.temperature_c < 0 THEN 'tr_s froid'
-            WHEN w.temperature_c < 10 THEN 'froid'
-            WHEN w.temperature_c < 20 THEN 'modere'
+            WHEN temperature_c < 0 THEN 'tres froid'
+            WHEN temperature_c < 10 THEN 'froid'
+            WHEN temperature_c < 20 THEN 'modere'
             ELSE 'chaud'
         END AS temp_bande,
         CASE
-            WHEN w.humidite_relative_pct < 40 THEN 'sec'
-            WHEN w.humidite_relative_pct <= 70 THEN 'normal'
+            WHEN humidite_relative_pct < 40 THEN 'sec'
+            WHEN humidite_relative_pct <= 70 THEN 'normal'
             ELSE 'humide'
         END AS humidite_bande,
         CASE
-            WHEN w.wind_speed_10m_kmh < 10 THEN 'calme'
-            WHEN w.wind_speed_10m_kmh <= 30 THEN 'modere'
+            WHEN wind_speed_10m_kmh < 10 THEN 'calme'
+            WHEN wind_speed_10m_kmh <= 30 THEN 'modere'
             ELSE 'fort'
         END AS vent_bande,
         CASE
-            WHEN COALESCE(w.precipitation_mm, 0) = 0 THEN 'aucune'
-            WHEN w.precipitation_mm < 2 THEN 'legere'
-            WHEN w.precipitation_mm < 10 THEN 'moderee'
+            WHEN COALESCE(precipitation_mm, 0) = 0 THEN 'aucune'
+            WHEN precipitation_mm < 2 THEN 'legere'
+            WHEN precipitation_mm < 10 THEN 'moderee'
             ELSE 'forte'
         END AS pluie_classe
-    FROM weather_hourly w
+    FROM weather_hourly
+    WHERE temperature_c IS NOT NULL
+      AND humidite_relative_pct IS NOT NULL
+      AND wind_speed_10m_kmh IS NOT NULL
 ),
-weather_enriched AS (
+upsert_meteo AS (
+    INSERT INTO public.dim_meteo_classe (
+        temp_bande,
+        humidite_bande,
+        vent_bande,
+        pluie_classe,
+        source_classe
+    )
+    SELECT DISTINCT
+        temp_bande,
+        humidite_bande,
+        vent_bande,
+        pluie_classe,
+        'Open-Meteo'
+    FROM weather_classified
+    ON CONFLICT (temp_bande, humidite_bande, vent_bande, pluie_classe, source_classe) DO UPDATE
+    SET source_classe = EXCLUDED.source_classe
+    RETURNING
+        id_meteo_classe,
+        temp_bande,
+        humidite_bande,
+        vent_bande,
+        pluie_classe,
+        source_classe
+),
+joined AS (
     SELECT
-        wc.station_code,
-        wc.bucket_utc,
+        t.id_temps,
+        st.id_station,
+        dp.id_polluant,
+        mc.id_meteo_classe,
+        n.parameter_code,
+        n.valeur,
+        n.unite,
         wc.temperature_c,
         wc.humidite_relative_pct,
         wc.vitesse_vent_10m_ms,
         wc.precipitation_mm,
-        wc.rain_flag,
-        mc.id_meteo_classe
-    FROM weather_classified wc
-    LEFT JOIN public.dim_meteo_classe mc
+        wc.rain_flag
+    FROM normalized n
+    JOIN public.dim_station st
+        ON st.station_code = n.station_code
+       AND st.is_active = true
+    JOIN public.dim_temps t
+        ON t.date_heure_utc = n.bucket_utc
+    JOIN upsert_polluant dp
+        ON dp.parameter_code = n.parameter_code
+    JOIN weather_classified wc
+        ON wc.station_code = n.station_code
+       AND wc.bucket_utc = n.bucket_utc
+    JOIN upsert_meteo mc
         ON mc.temp_bande = wc.temp_bande
        AND mc.humidite_bande = wc.humidite_bande
        AND mc.vent_bande = wc.vent_bande
@@ -121,59 +165,53 @@ weather_enriched AS (
 INSERT INTO public.fait_pollution_heure (
     id_temps,
     id_station,
+    id_polluant,
     id_meteo_classe,
-    co_mg_m3,
-    no2_ug_m3,
-    pm25_ug_m3,
-    pm10_ug_m3,
-    o3_ug_m3,
-    benzene_ug_m3,
-    nox_ppb,
+    valeur,
+    unite,
+    indice_aqi,
+    seuil_oms_depasse,
     temperature_c,
     humidite_relative_pct,
     vitesse_vent_10m_ms,
     precipitation_mm,
-    rain_flag,
-    charge_le_utc
+    rain_flag
 )
 SELECT
-    t.id_temps,
-    st.id_station,
-    we.id_meteo_classe,
-    hp.co_mg_m3,
-    hp.no2_ug_m3,
-    hp.pm25_ug_m3,
-    hp.pm10_ug_m3,
-    hp.o3_ug_m3,
-    hp.benzene_ug_m3,
-    hp.nox_ppb,
-    we.temperature_c,
-    we.humidite_relative_pct,
-    we.vitesse_vent_10m_ms,
-    COALESCE(we.precipitation_mm, 0)::numeric(6,2),
-    COALESCE(we.rain_flag, false),
-    CURRENT_TIMESTAMP
-FROM hourly_pivot hp
-JOIN public.dim_station st
-    ON st.station_code = hp.station_code
-JOIN public.dim_temps t
-    ON t.date_heure_utc = hp.bucket_utc
-LEFT JOIN weather_enriched we
-    ON we.station_code = hp.station_code
-   AND we.bucket_utc = hp.bucket_utc
-ON CONFLICT (id_temps, id_station) DO UPDATE
-SET
-    id_meteo_classe = COALESCE(EXCLUDED.id_meteo_classe, public.fait_pollution_heure.id_meteo_classe),
-    co_mg_m3 = COALESCE(EXCLUDED.co_mg_m3, public.fait_pollution_heure.co_mg_m3),
-    no2_ug_m3 = COALESCE(EXCLUDED.no2_ug_m3, public.fait_pollution_heure.no2_ug_m3),
-    pm25_ug_m3 = COALESCE(EXCLUDED.pm25_ug_m3, public.fait_pollution_heure.pm25_ug_m3),
-    pm10_ug_m3 = COALESCE(EXCLUDED.pm10_ug_m3, public.fait_pollution_heure.pm10_ug_m3),
-    o3_ug_m3 = COALESCE(EXCLUDED.o3_ug_m3, public.fait_pollution_heure.o3_ug_m3),
-    benzene_ug_m3 = COALESCE(EXCLUDED.benzene_ug_m3, public.fait_pollution_heure.benzene_ug_m3),
-    nox_ppb = COALESCE(EXCLUDED.nox_ppb, public.fait_pollution_heure.nox_ppb),
-    temperature_c = COALESCE(EXCLUDED.temperature_c, public.fait_pollution_heure.temperature_c),
-    humidite_relative_pct = COALESCE(EXCLUDED.humidite_relative_pct, public.fait_pollution_heure.humidite_relative_pct),
-    vitesse_vent_10m_ms = COALESCE(EXCLUDED.vitesse_vent_10m_ms, public.fait_pollution_heure.vitesse_vent_10m_ms),
-    precipitation_mm = COALESCE(EXCLUDED.precipitation_mm, public.fait_pollution_heure.precipitation_mm),
-    rain_flag = COALESCE(EXCLUDED.rain_flag, public.fait_pollution_heure.rain_flag),
-    charge_le_utc = CURRENT_TIMESTAMP;
+    id_temps,
+    id_station,
+    id_polluant,
+    id_meteo_classe,
+    valeur,
+    unite,
+    CASE
+        WHEN parameter_code = 'pm25' THEN LEAST(500, GREATEST(0, ROUND(valeur * 4)::int))
+        WHEN parameter_code = 'pm10' THEN LEAST(500, GREATEST(0, ROUND(valeur * 2)::int))
+        WHEN parameter_code = 'no2' THEN LEAST(500, GREATEST(0, ROUND(valeur * 1.5)::int))
+        WHEN parameter_code = 'o3' THEN LEAST(500, GREATEST(0, ROUND(valeur * 1.2)::int))
+        ELSE LEAST(500, GREATEST(0, ROUND(valeur)::int))
+    END AS indice_aqi,
+    CASE
+        WHEN parameter_code = 'pm25' THEN valeur > 15
+        WHEN parameter_code = 'pm10' THEN valeur > 45
+        WHEN parameter_code = 'no2' THEN valeur > 25
+        WHEN parameter_code = 'o3' THEN valeur > 100
+        ELSE false
+    END AS seuil_oms_depasse,
+    temperature_c,
+    humidite_relative_pct,
+    vitesse_vent_10m_ms,
+    precipitation_mm,
+    rain_flag
+FROM joined
+ON CONFLICT (id_temps, id_station, id_polluant) DO UPDATE
+SET id_meteo_classe = EXCLUDED.id_meteo_classe,
+    valeur = EXCLUDED.valeur,
+    unite = EXCLUDED.unite,
+    indice_aqi = EXCLUDED.indice_aqi,
+    seuil_oms_depasse = EXCLUDED.seuil_oms_depasse,
+    temperature_c = EXCLUDED.temperature_c,
+    humidite_relative_pct = EXCLUDED.humidite_relative_pct,
+    vitesse_vent_10m_ms = EXCLUDED.vitesse_vent_10m_ms,
+    precipitation_mm = EXCLUDED.precipitation_mm,
+    rain_flag = EXCLUDED.rain_flag;

@@ -33,24 +33,73 @@
     <copies>1</copies>
     <partitioning><method>none</method><schema_name/></partitioning>
     <connection>projetbi</connection>
-    <sql>SELECT DISTINCT
+    <sql>WITH sensor_catalog AS (
+    SELECT DISTINCT
+        r.station_code,
+        r.openaq_location_id,
+        (sensor -&gt;&gt; 'id')::integer AS sensor_id,
+        LOWER(sensor -&gt; 'parameter' -&gt;&gt; 'name') AS parameter_code
+    FROM public.stg_pollution_json_raw r
+    JOIN public.dim_station st
+      ON st.station_code = r.station_code
+     AND st.is_active = true
+    CROSS JOIN LATERAL jsonb_array_elements(
+        CASE
+            WHEN jsonb_typeof(r.api_result::jsonb -&gt; 'results') = 'array'
+                THEN r.api_result::jsonb -&gt; 'results'
+            ELSE jsonb_build_array(r.api_result::jsonb)
+        END
+    ) AS result_item
+    CROSS JOIN LATERAL jsonb_array_elements(
+        COALESCE(result_item -&gt; 'sensors', '[]'::jsonb)
+    ) AS sensor
+    WHERE jsonb_exists(sensor, 'id')
+      AND sensor -&gt; 'parameter' -&gt;&gt; 'name' IS NOT NULL
+      AND LOWER(sensor -&gt; 'parameter' -&gt;&gt; 'name') IN ('co', 'no', 'no2', 'nox', 'o3', 'pm10', 'pm25', 'so2')
+)
+SELECT
     r.station_code,
     r.openaq_location_id,
-    (sensor -&gt;&gt; 'id')::integer AS sensor_id,
-    LOWER(sensor -&gt; 'parameter' -&gt;&gt; 'name') AS parameter_code
-FROM public.stg_pollution_json_raw r
-CROSS JOIN LATERAL jsonb_array_elements(
-    CASE
-        WHEN jsonb_typeof(r.api_result::jsonb -&gt; 'results') = 'array'
-            THEN r.api_result::jsonb -&gt; 'results'
-        ELSE jsonb_build_array(r.api_result::jsonb)
-    END
-) AS result_item
-CROSS JOIN LATERAL jsonb_array_elements(
-    COALESCE(result_item -&gt; 'sensors', '[]'::jsonb)
-) AS sensor
-WHERE jsonb_exists(sensor, 'id')
-  AND sensor -&gt; 'parameter' -&gt;&gt; 'name' IS NOT NULL;</sql>
+    r.sensor_id,
+    r.parameter_code,
+    to_char(request_window.datetime_from, 'YYYY-MM-DD&quot;T&quot;HH24:MI:SS&quot;Z&quot;') AS datetime_from,
+    to_char(request_window.datetime_to, 'YYYY-MM-DD&quot;T&quot;HH24:MI:SS&quot;Z&quot;') AS datetime_to
+FROM sensor_catalog r
+JOIN public.dim_station st
+  ON st.station_code = r.station_code
+ AND st.is_active = true
+LEFT JOIN LATERAL (
+    SELECT MAX(t.date_heure_utc) AS max_fact_utc
+    FROM public.fait_pollution_heure f
+    JOIN public.dim_temps t
+      ON t.id_temps = f.id_temps
+    JOIN public.dim_polluant p
+      ON p.id_polluant = f.id_polluant
+    WHERE f.id_station = st.id_station
+      AND p.parameter_code = r.parameter_code
+) last_loaded ON true
+CROSS JOIN LATERAL (
+    SELECT
+        COALESCE(
+            last_loaded.max_fact_utc + INTERVAL '1 hour',
+            GREATEST(
+                st.datetime_first_utc,
+                (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '7 days'
+            )
+        ) AS datetime_from,
+        LEAST(
+            COALESCE(
+                last_loaded.max_fact_utc + INTERVAL '1 hour',
+                GREATEST(
+                    st.datetime_first_utc,
+                    (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '7 days'
+                )
+            ) + INTERVAL '7 days',
+            CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+            st.datetime_last_utc
+        ) AS datetime_to
+) request_window
+WHERE request_window.datetime_from &lt;= request_window.datetime_to;</sql>
     <limit>0</limit>
     <attributes/>
     <GUI><xloc>128</xloc><yloc>224</yloc></GUI>
@@ -73,13 +122,13 @@ WHERE jsonb_exists(sensor, 'id')
   <transform>
     <name>Build full URL</name>
     <type>Formula</type>
-    <description>Construct https://api.openaq.org/v3/sensors/{sensor_id}/measurements.</description>
+    <description>Construct an incremental https://api.openaq.org/v3/sensors/{sensor_id}/measurements URL.</description>
     <distribute>Y</distribute>
     <custom_distribution/>
     <copies>1</copies>
     <partitioning><method>none</method><schema_name/></partitioning>
     <formulas>
-      <formula><field_name>full_url</field_name><formula>CONCATENATE([base_url],"/",TEXT([sensor_id],"0"),"/measurements")</formula><replace_field/><set_na>N</set_na><value_length>-1</value_length><value_precision>-1</value_precision><value_type>2</value_type></formula>
+      <formula><field_name>full_url</field_name><formula>CONCATENATE([base_url],"/",TEXT([sensor_id],"0"),"/measurements?limit=1000&amp;datetime_from=",[datetime_from],"&amp;datetime_to=",[datetime_to])</formula><replace_field/><set_na>N</set_na><value_length>-1</value_length><value_precision>-1</value_precision><value_type>2</value_type></formula>
     </formulas>
     <attributes/>
     <GUI><xloc>576</xloc><yloc>224</yloc></GUI>

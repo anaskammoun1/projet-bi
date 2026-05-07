@@ -19,7 +19,7 @@
   <notepads/>
   <order>
     <hop>
-      <from>Data grid</from>
+      <from>Table input active stations</from>
       <to>Add constants</to>
       <enabled>Y</enabled>
     </hop>
@@ -40,8 +40,8 @@
     </hop>
   </order>
   <transform>
-    <name>Data grid</name>
-    <type>DataGrid</type>
+    <name>Table input active stations</name>
+    <type>TableInput</type>
     <distribute>Y</distribute>
     <custom_distribution/>
     <copies>1</copies>
@@ -49,71 +49,36 @@
       <method>none</method>
       <schema_name/>
     </partitioning>
-    <data>
-      <line>
-        <item>PARIS_4039</item>
-        <item>48.891666</item>
-        <item>2.346667</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-      <line>
-        <item>LONDON_148</item>
-        <item>51.522290</item>
-        <item>-0.125889</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-      <line>
-        <item>BERLIN_2993</item>
-        <item>52.489451</item>
-        <item>13.430844</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-      <line>
-        <item>MADRID_3223</item>
-        <item>40.424167</item>
-        <item>-3.712222</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-      <line>
-        <item>DAKAR_1531944</item>
-        <item>14.746476</item>
-        <item>-17.510441</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-      <line>
-        <item>CAIRO_1621200</item>
-        <item>30.041470</item>
-        <item>31.232890</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-      <line>
-        <item>DELHI_17</item>
-        <item>28.563262</item>
-        <item>77.186937</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-      <line>
-        <item>BEIJING_8833</item>
-        <item>39.953352</item>
-        <item>116.466258</item>
-        <item>2024-01-01</item>
-        <item>2026-04-16</item>
-      </line>
-    </data>
-    <fields>
-      <field><name>station_code</name><type>String</type><length>-1</length><precision>-1</precision><currency/><set_empty_string>N</set_empty_string><format/><group/><decimal/></field>
-      <field><name>latitude</name><type>Number</type><length>-1</length><precision>-1</precision><currency/><set_empty_string>N</set_empty_string><format/><group/><decimal/></field>
-      <field><name>longitude</name><type>Number</type><length>-1</length><precision>-1</precision><currency/><set_empty_string>N</set_empty_string><format/><group/><decimal/></field>
-      <field><name>start_date</name><type>String</type><length>-1</length><precision>-1</precision><currency/><set_empty_string>N</set_empty_string><format/><group/><decimal/></field>
-      <field><name>end_date</name><type>String</type><length>-1</length><precision>-1</precision><currency/><set_empty_string>N</set_empty_string><format/><group/><decimal/></field>
-    </fields>
+    <connection>projetbi</connection>
+    <sql>WITH station_window AS (
+    SELECT
+        s.station_code,
+        s.latitude,
+        s.longitude,
+        COALESCE(
+            (
+                SELECT MAX(m.end_date::date) + 1
+                FROM public.stg_meteo_json_raw m
+                WHERE m.station_code = s.station_code
+                  AND m.end_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            ),
+            GREATEST(s.datetime_first_utc::date, DATE '2016-01-01')
+        ) AS start_date,
+        LEAST(CURRENT_DATE - INTERVAL '2 days', s.datetime_last_utc::date)::date AS end_date
+    FROM public.dim_station s
+    WHERE s.is_active = true
+      AND s.datetime_last_utc::date &gt;= CURRENT_DATE - INTERVAL '180 days'
+      AND s.datetime_first_utc::date &lt;= CURRENT_DATE - INTERVAL '2 days'
+)
+SELECT
+    station_code,
+    latitude,
+    longitude,
+    to_char(start_date, 'YYYY-MM-DD') AS start_date,
+    to_char(end_date, 'YYYY-MM-DD') AS end_date
+FROM station_window
+WHERE start_date &lt;= end_date;</sql>
+    <limit>0</limit>
     <attributes/>
     <GUI><xloc>160</xloc><yloc>240</yloc></GUI>
   </transform>

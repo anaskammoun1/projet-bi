@@ -75,7 +75,7 @@ ON CONFLICT (date_heure_utc) DO NOTHING;</sql>
       <connection>projetbi</connection><sendOneStatement>N</sendOneStatement>
       <sql>INSERT INTO public.dim_meteo_classe (temp_bande,humidite_bande,vent_bande,pluie_classe,source_classe)
 SELECT DISTINCT
-    CASE WHEN temperature_c &lt; 0 THEN 'tr_s froid' WHEN temperature_c &lt; 10 THEN 'froid' WHEN temperature_c &lt; 20 THEN 'modere' ELSE 'chaud' END,
+    CASE WHEN temperature_c &lt; 0 THEN 'tres froid' WHEN temperature_c &lt; 10 THEN 'froid' WHEN temperature_c &lt; 20 THEN 'modere' ELSE 'chaud' END,
     CASE WHEN humidite &lt; 40 THEN 'sec' WHEN humidite &lt;= 70 THEN 'normal' ELSE 'humide' END,
     CASE WHEN vent &lt; 10 THEN 'calme' WHEN vent &lt;= 30 THEN 'modere' ELSE 'fort' END,
     CASE WHEN pluie = 0 THEN 'aucune' WHEN pluie &lt; 2 THEN 'legere' WHEN pluie &lt; 10 THEN 'moderee' ELSE 'forte' END,

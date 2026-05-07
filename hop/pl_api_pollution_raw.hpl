@@ -34,13 +34,20 @@
     <partitioning><method>none</method><schema_name/></partitioning>
     <data>
       <line><item>FRA</item><item>France</item><item>PARIS_4039</item><item>Paris</item><item>4039</item><item>2016-01-01</item><item>2026-12-31</item></line>
+      <line><item>FRA</item><item>France</item><item>MARSEILLE_2162726</item><item>Marseille</item><item>2162726</item><item>2016-01-01</item><item>2026-12-31</item></line>
       <line><item>GBR</item><item>United Kingdom</item><item>LONDON_148</item><item>London</item><item>148</item><item>2016-01-01</item><item>2026-12-31</item></line>
+      <line><item>GBR</item><item>United Kingdom</item><item>CARDIFF_2485</item><item>Cardiff</item><item>2485</item><item>2016-01-01</item><item>2026-12-31</item></line>
       <line><item>DEU</item><item>Germany</item><item>BERLIN_2993</item><item>Berlin</item><item>2993</item><item>2016-01-01</item><item>2026-12-31</item></line>
+      <line><item>DEU</item><item>Germany</item><item>BERLIN_4767</item><item>Berlin</item><item>4767</item><item>2016-01-01</item><item>2026-12-31</item></line>
       <line><item>ESP</item><item>Spain</item><item>MADRID_3223</item><item>Madrid</item><item>3223</item><item>2016-01-01</item><item>2026-12-31</item></line>
+      <line><item>ESP</item><item>Spain</item><item>BARCELONA_3291</item><item>Barcelona</item><item>3291</item><item>2016-01-01</item><item>2026-12-31</item></line>
       <line><item>SEN</item><item>Senegal</item><item>DAKAR_1531944</item><item>Dakar</item><item>1531944</item><item>2016-01-01</item><item>2026-12-31</item></line>
+      <line><item>SEN</item><item>Senegal</item><item>THIES_6125837</item><item>Thies</item><item>6125837</item><item>2016-01-01</item><item>2026-12-31</item></line>
       <line><item>EGY</item><item>Egypt</item><item>CAIRO_1621200</item><item>Cairo</item><item>1621200</item><item>2016-01-01</item><item>2026-12-31</item></line>
       <line><item>IND</item><item>India</item><item>DELHI_17</item><item>Delhi</item><item>17</item><item>2016-01-01</item><item>2026-12-31</item></line>
+      <line><item>IND</item><item>India</item><item>NARELA_10485</item><item>Delhi</item><item>10485</item><item>2016-01-01</item><item>2026-12-31</item></line>
       <line><item>CHN</item><item>China</item><item>BEIJING_8833</item><item>Beijing</item><item>8833</item><item>2016-01-01</item><item>2026-12-31</item></line>
+      <line><item>CHN</item><item>China</item><item>CHUNXIU_2836346</item><item>Beijing</item><item>2836346</item><item>2016-01-01</item><item>2026-12-31</item></line>
     </data>
     <fields>
       <field><length>-1</length><precision>-1</precision><set_empty_string>N</set_empty_string><name>pays_code</name><type>String</type></field>
@@ -48,8 +55,6 @@
       <field><length>-1</length><precision>-1</precision><set_empty_string>N</set_empty_string><name>station_code</name><type>String</type></field>
       <field><length>-1</length><precision>-1</precision><set_empty_string>N</set_empty_string><name>city</name><type>String</type></field>
       <field><length>-1</length><precision>-1</precision><set_empty_string>N</set_empty_string><name>location_id</name><type>Integer</type></field>
-      <field><length>-1</length><precision>-1</precision><set_empty_string>N</set_empty_string><name>datetime_from</name><type>String</type></field>
-      <field><length>-1</length><precision>-1</precision><set_empty_string>N</set_empty_string><name>datetime_to</name><type>String</type></field>
     </fields>
     <attributes/>
     <GUI><xloc>128</xloc><yloc>352</yloc></GUI>
@@ -133,8 +138,6 @@
       <field><length>-2</length><name>station_code</name><precision>-2</precision><rename>station_code</rename></field>
       <field><length>-2</length><name>city</name><precision>-2</precision><rename>city</rename></field>
       <field><length>-2</length><name>location_id</name><precision>0</precision><rename>openaq_location_id</rename></field>
-      <field><length>-2</length><name>datetime_from</name><precision>-2</precision><rename>datetime_from</rename></field>
-      <field><length>-2</length><name>datetime_to</name><precision>-2</precision><rename>datetime_to</rename></field>
       <field><length>-2</length><name>api_result</name><precision>-2</precision><rename>api_result</rename></field>
       <select_unspecified>N</select_unspecified>
     </fields>
@@ -162,8 +165,6 @@
       <field><column_name>station_code</column_name><stream_name>station_code</stream_name></field>
       <field><column_name>city</column_name><stream_name>city</stream_name></field>
       <field><column_name>openaq_location_id</column_name><stream_name>openaq_location_id</stream_name></field>
-      <field><column_name>datetime_from</column_name><stream_name>datetime_from</stream_name></field>
-      <field><column_name>datetime_to</column_name><stream_name>datetime_to</stream_name></field>
       <field><column_name>api_result</column_name><stream_name>api_result</stream_name></field>
     </fields>
     <ignore_errors>N</ignore_errors>

@@ -19,8 +19,6 @@ CREATE TABLE public.stg_pollution_json_raw (
     station_code character varying(50) NOT NULL,
     city character varying(100),
     openaq_location_id integer NOT NULL,
-    datetime_from character varying(10),
-    datetime_to character varying(10),
     api_result text NOT NULL
 );</sql><sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>176</xloc><yloc>112</yloc><attributes_hac/></action>
     <action><name>Clear pollution location staging</name><description/><type>SQL</type><attributes/><connection>projetbi</connection><sendOneStatement>N</sendOneStatement><sql>TRUNCATE TABLE public.stg_pollution_json_raw;</sql><sqlfilename/><sqlfromfile>N</sqlfromfile><useVariableSubstitution>N</useVariableSubstitution><parallel>N</parallel><xloc>384</xloc><yloc>112</yloc><attributes_hac/></action>
